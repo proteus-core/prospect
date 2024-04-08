@@ -1,0 +1,12 @@
+*.o
+*.elf
+*.bin
+*.ihex
+*.binsec
+*.objdump
+*.dba
+
+# Not ready yet
+sort_portable3_uint32.c
+sort_portable4_int32.c
+sort_portable4_uint32.c
