@@ -34,7 +34,7 @@ ENV PATH="${PATH}:/opt/riscv/bin"
 
 # Install baseline version of Proteus
 WORKDIR /proteus-base
-RUN git clone --recurse-submodules --depth=1 --branch prospect_submission https://github.com/proteus-core/proteus.git .
+RUN git clone --recurse-submodules --depth=1 --branch v23.02 https://github.com/proteus-core/proteus.git .
 # create simulator binary and run riscv-tests
 RUN make -C tests CORE=riscv.CoreDynamicExtMem RISCV_PREFIX=riscv32-unknown-elf
 RUN mv sim/build/sim sim/build/base
