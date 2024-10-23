@@ -156,7 +156,7 @@ class ReservationStation(
       val sec1 = Bool()
       sec1 := rs1secret
       val sec2 = Bool()
-      sec2 := rs1secret
+      sec2 := rs2secret
 
       when(currentRs1Prior.valid && cdbMessage.robIndex === currentRs1Prior.payload) {
         pipeline.serviceOption[ProspectService] foreach { prospect =>
