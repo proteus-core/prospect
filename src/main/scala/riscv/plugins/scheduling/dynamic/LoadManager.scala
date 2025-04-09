@@ -13,6 +13,8 @@ class LoadManager(
 )(implicit config: Config)
     extends Area
     with Resettable {
+  setPartialName(s"LM_${loadStage.stageName}")
+
   val storedMessage: RdbMessage = RegInit(RdbMessage(retirementRegisters, rob.indexBits).getZero)
   val outputCache: RdbMessage = RegInit(RdbMessage(retirementRegisters, rob.indexBits).getZero)
   val rdbStream: Stream[RdbMessage] = Stream(
@@ -37,15 +39,12 @@ class LoadManager(
   def receiveMessage(rdbMessage: RdbMessage): Bool = {
     val ret = Bool()
     ret := False
-    when(isAvailable) {
+    val address = pipeline.service[LsuService].addressOfBundle(rdbMessage.registerMap)
+    val hasPendingStore = rob.hasPendingStoreForEntry(rdbMessage.robIndex, address)
+    when(isAvailable && !hasPendingStore) {
       ret := True
       storedMessage := rdbMessage
-      val address = pipeline.service[LsuService].addressOfBundle(rdbMessage.registerMap)
-      when(!rob.hasPendingStoreForEntry(rdbMessage.robIndex, address)) {
-        stateNext := State.EXECUTING
-      } otherwise {
-        stateNext := State.WAITING_FOR_STORE
-      }
+      stateNext := State.EXECUTING
     }
     ret
   }
@@ -90,6 +89,7 @@ class LoadManager(
     when(state === State.EXECUTING && loadStage.arbitration.isDone && !activeFlush) {
       rdbStream.valid := True
       rdbStream.payload.robIndex := storedMessage.robIndex
+      rdbStream.payload.willCdbUpdate := True
       for (register <- retirementRegisters.keys) {
         rdbStream.payload.registerMap.element(register) := loadStage.output(register)
       }

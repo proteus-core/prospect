@@ -1,5 +1,7 @@
 package riscv
 
+import spinal.core.log2Up
+
 sealed trait BaseIsa {
   val xlen: Int
   val numRegs: Int
@@ -22,20 +24,33 @@ object BaseIsa {
 
 class Config(val baseIsa: BaseIsa, val debug: Boolean = true) {
   def xlen = baseIsa.xlen
-  def numRegs = baseIsa.xlen
+  def numRegs = baseIsa.numRegs
+
+  def memBusWidth: Int = 128
+
+  def robEntries: Int = 32
+
+  def parallelAlus: Int = 8
+
+  def parallelMulDivs: Int = 2
+
+  def parallelLoads: Int = 3
 
   def ibusConfig = MemBusConfig(
     addressWidth = baseIsa.xlen,
-    dataWidth = baseIsa.xlen,
+    idWidth = 2,
+    dataWidth = memBusWidth,
     readWrite = false
   )
   def readDbusConfig = MemBusConfig(
     addressWidth = baseIsa.xlen,
-    dataWidth = baseIsa.xlen,
+    idWidth = log2Up(parallelLoads + 1),
+    dataWidth = memBusWidth,
     readWrite = false
   )
   def dbusConfig = MemBusConfig(
     addressWidth = baseIsa.xlen,
-    dataWidth = baseIsa.xlen
+    idWidth = log2Up(parallelLoads + 1),
+    dataWidth = memBusWidth
   )
 }

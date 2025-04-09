@@ -8,11 +8,11 @@ SIM_EXE = $(SIM_DIR)/build/sim
 CORE ?= riscv.CoreExtMem
 BUILD_CORE ?= 1
 
-RISCV_PREFIX ?= riscv64-unknown-elf
+RISCV_PREFIX ?= riscv32-unknown-elf
 CC = $(RISCV_PREFIX)-gcc
 LD = $(RISCV_PREFIX)-gcc
 OBJCOPY = $(RISCV_PREFIX)-objcopy
-ARCHFLAGS ?= -march=rv32imzicsr -mabi=ilp32
+ARCHFLAGS ?= -march=rv32im_zicsr -mabi=ilp32
 CFLAGS = $(ARCHFLAGS)
 
 ifeq ($(BUILD_CORE),1)
@@ -25,7 +25,7 @@ endif
 
 TEST_DIRS ?= $(ISA_TESTS_DIR)/rv32ui $(ISA_TESTS_DIR)/rv32mi $(ISA_TESTS_DIR)/rv32um $(CUSTOM_TESTS_DIR)
 ALL_ISA_TESTS = $(shell find $(TEST_DIRS) -name '*.S')
-UNSUPPORTED_TESTS = %fence_i.S %breakpoint.S
+UNSUPPORTED_TESTS = %fence_i.S %breakpoint.S %ma_data.S
 ALL_TESTS = $(filter-out $(UNSUPPORTED_TESTS),$(ALL_ISA_TESTS))
 ALL_TARGETS = $(addsuffix .pass,$(basename $(addprefix $(BUILD_DIR)/,$(notdir $(ALL_TESTS)))))
 

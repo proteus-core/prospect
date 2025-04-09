@@ -1,4 +1,4 @@
-KERNEL_DIR = ../newlib
+KERNEL_DIR = ../../newlib
 KREMLIB_INCLUDE_DIR = ./include/kremlib
 KREMLIN_INCLUDE_DIR = ./include
 

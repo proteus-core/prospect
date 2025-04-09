@@ -43,6 +43,8 @@ trait MemoryService {
     * `observer` function is called in the context of the top-level Pipeline component.
     */
   def observeDBus(observer: MemBusObserver): Unit
+
+  def filterIBus(filter: MemBusFilter): Unit
 }
 
 trait FetchAddressTranslator {
@@ -316,10 +318,30 @@ trait BranchTargetPredictorService {
   def predictedPc(stage: Stage): UInt
   def addPredictedPcToBundle(bundle: DynBundle[PipelineData[Data]]): Unit
   def predictedPcOfBundle(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): UInt
-  def predictionForAddress(
-      address: UInt
-  ): UInt // TODO: should it be Flow[UInt] to signal no prediction instead of forcing + 4?
   def setPredictedPc(stage: Stage, pc: UInt): Unit
+}
+
+trait PrefetchService {
+
+  /** Inform the prefetcher of a load request
+    */
+  def notifyLoadRequest(address: UInt): Unit
+
+  /** Inform the prefetcher of a load response returning from memory
+    */
+  def notifyLoadResponseFromMemory(address: UInt, data: UInt): Unit
+
+  /** Inform the prefetcher of a prefetch response returning from memory
+    */
+  def notifyPrefetchResponseFromMemory(address: UInt, data: UInt): Unit
+
+  /** Check if the prefetcher has a prefetch target ready
+    */
+  def hasPrefetchTarget: Bool
+
+  /** Get the next prefetch target from the prefetcher
+    */
+  def getNextPrefetchTarget: UInt
 }
 
 trait TrapService {
@@ -456,4 +478,8 @@ trait ProspectService {
 
 trait Resettable {
   def pipelineReset(): Unit
+}
+
+trait FenceService {
+  def isFence(stage: Stage): Bool
 }

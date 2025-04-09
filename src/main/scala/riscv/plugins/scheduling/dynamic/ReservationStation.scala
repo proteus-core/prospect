@@ -247,7 +247,12 @@ class ReservationStation(
           // propagate branch dependencies on the CDB
           pipeline
             .service[BranchService]
-            .pendingBranchOfBundle(cdbStream.payload.metadata) := meta.priorBranch.resized
+            .pendingBranchOfBundle(cdbStream.payload.metadata)
+            .valid := meta.priorBranch.valid
+          pipeline
+            .service[BranchService]
+            .pendingBranchOfBundle(cdbStream.payload.metadata)
+            .payload := meta.priorBranch.payload.resized
           val targetService = pipeline.service[BranchTargetPredictorService]
           targetService.predictedPcOfBundle(cdbStream.metadata) := targetService.predictedPc(
             exeStage
@@ -283,6 +288,10 @@ class ReservationStation(
       ) {
         cdbStream.valid := True
       }
+
+      dispatchStream.payload.willCdbUpdate := cdbStream.valid || pipeline
+        .service[LsuService]
+        .operationOutput(exeStage) === LsuOperationType.LOAD
       dispatchStream.valid := True
 
       // Override the assignment of resultCdbMessage to make sure data can be sent in later cycles
@@ -323,15 +332,7 @@ class ReservationStation(
   def execute(): Unit = {
     val issueStage = pipeline.issuePipeline.stages.last
 
-    val robIndex = UInt()
-    robIndex := rob.pushEntry(
-      issueStage.output(pipeline.data.RD),
-      issueStage.output(pipeline.data.RD_TYPE),
-      pipeline.service[LsuService].operationOutput(issueStage),
-      pipeline.service[BranchService].isBranch(issueStage),
-      issueStage.output(pipeline.data.PC),
-      pipeline.service[BranchTargetPredictorService].predictedPc(issueStage)
-    )
+    val (robIndex, entryMeta) = rob.pushEntry()
 
     robEntryIndex := robIndex
 
@@ -352,43 +353,38 @@ class ReservationStation(
 
     def dependencySetup(
         metaRs: RegisterSource,
-        reg: PipelineData[UInt],
+        rsData: Flow[RsData],
         regData: PipelineData[UInt],
-        regType: PipelineData[SpinalEnumCraft[RegisterType.type]]
+        reg: PipelineData[UInt]
     ): Unit = {
-      val rsUsed = issueStage.output(regType) === RegisterType.GPR
-
-      when(rsUsed) {
-        val rsReg = issueStage.output(reg)
-        val (rsInRob, rsValue) = rob.findRegisterValue(rsReg)
-
-        when(rsInRob) {
-          when(rsValue.valid) {
+      when(rsData.valid) {
+        when(rsData.payload.updatingInstructionFound) {
+          when(rsData.payload.updatingInstructionFinished) {
             pipeline.serviceOption[ProspectService] foreach { prospect =>
-              metaRs.isSecretNext := prospect.isSecretOfBundle(rsValue.payload.metadata)
+              metaRs.isSecretNext := rsData.isSecret
             }
-            regs.setReg(regData, rsValue.payload.writeValue)
+            regs.setReg(regData, rsData.payload.updatingInstructionValue)
           } otherwise {
-            metaRs.priorInstructionNext.push(rsValue.payload.robIndex)
+            metaRs.priorInstructionNext.push(rsData.payload.updatingInstructionIndex)
           }
         } otherwise {
           pipeline.serviceOption[ProspectService] foreach { prospect =>
-            metaRs.isSecretNext := prospect.isSecretRegister(rsReg)
+            metaRs.isSecretNext := prospect.isSecretRegister(issueStage.output(reg))
           }
           regs.setReg(regData, issueStage.output(regData))
         }
 
         // ProSpeCT: condition for waiting: either the operand is pending in ROB, or the operand is secret and there is a pending branch
         when(
-          (rsInRob && !rsValue.valid) || (dependentJump.valid && metaRs.isSecretNext && !prospectResolved)
+          (rsData.payload.updatingInstructionFound && !rsData.payload.updatingInstructionFinished) || (dependentJump.valid && metaRs.isSecretNext && !prospectResolved)
         ) {
           stateNext := State.WAITING_FOR_ARGS
         }
       }
     }
 
-    dependencySetup(meta.rs1, pipeline.data.RS1, pipeline.data.RS1_DATA, pipeline.data.RS1_TYPE)
-    dependencySetup(meta.rs2, pipeline.data.RS2, pipeline.data.RS2_DATA, pipeline.data.RS2_TYPE)
+    dependencySetup(meta.rs1, entryMeta.rs1Data, pipeline.data.RS1_DATA, pipeline.data.RS1)
+    dependencySetup(meta.rs2, entryMeta.rs2Data, pipeline.data.RS2_DATA, pipeline.data.RS2)
   }
 
   override def pipelineReset(): Unit = {

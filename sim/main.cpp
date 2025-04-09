@@ -1,7 +1,9 @@
 #include "VCore.h"
 
 #include <verilated.h>
-#include <verilated_vcd_c.h>
+#include <verilated_fst_c.h>
+
+#include <bit>
 
 #include <memory>
 #include <vector>
@@ -19,6 +21,21 @@ const int    CLOCK_FREQUENCY = 100*1e6;
 const int    CLOCK_PERIOD    = 1/(CLOCK_FREQUENCY*TIMESCALE);
 
 const std::uint64_t MAX_CYCLES = 1000000000ULL;
+
+const unsigned int MEMBUS_WORDS = 4;
+const unsigned int MEMBUS_OFFSET = 2 + std::bit_width(MEMBUS_WORDS) - 1;
+
+#ifdef LOG_STORES_ENABLED
+const bool log_stores = true;
+#else
+const bool log_stores = false;
+#endif
+
+#ifdef TRACE_DUMP_ENABLED
+const bool trace_dump = true;
+#else
+const bool trace_dump = false;
+#endif
 
 class Memory
 {
@@ -56,7 +73,9 @@ public:
 
         if (nextReadCycle_ == cycle)
         {
-            top_.io_axi_r_payload_data = nextReadWord_;
+            for (unsigned i = 0; i < MEMBUS_WORDS; ++i) {
+                top_.io_axi_r_payload_data[i] = nextReadData_[i];
+            }
             top_.io_axi_r_payload_id = nextReadId_;
             top_.io_axi_r_payload_last = true;
             top_.io_axi_r_valid = true;
@@ -77,7 +96,7 @@ public:
             }
             else
             {
-                nextReadWord_ = read(top_.io_axi_arw_payload_addr);
+                read(top_.io_axi_arw_payload_addr, nextReadData_);
                 nextReadCycle_ = cycle + 1;
                 nextReadId_ = top_.io_axi_arw_payload_id;
             }
@@ -88,43 +107,62 @@ private:
 
     using Address = std::uint32_t;
     using Word = std::uint32_t;
-    using Mask = std::uint8_t;
+    using Mask = std::uint32_t;
 
-    Word read(Address address)
+    void read(Address address, WDataOutP value)
     {
         ensureEnoughMemory(address);
-        return memory_[(address >> 2)];
+
+        auto baseAddress = (address >> MEMBUS_OFFSET) << (MEMBUS_OFFSET - 2);
+
+        for (unsigned i = 0; i < MEMBUS_WORDS; ++i) {
+            value[i] = memory_[baseAddress + i];
+        }
     }
 
-    void write(Address address, Mask mask, Word value)
+    void write(Address address, Mask mask, WDataInP value)
     {
         ensureEnoughMemory(address);
 
         auto bitMask = Word{0};
-        if (mask & 0x1) bitMask |= 0x000000ff;
-        if (mask & 0x2) bitMask |= 0x0000ff00;
-        if (mask & 0x4) bitMask |= 0x00ff0000;
-        if (mask & 0x8) bitMask |= 0xff000000;
+        auto baseAddress = (address >> MEMBUS_OFFSET) << (MEMBUS_OFFSET - 2);
 
-        auto& memoryValue = memory_[(address >> 2)];
-        memoryValue &= ~bitMask;
-        memoryValue |= value & bitMask;
+        for (unsigned i = 0; i < MEMBUS_WORDS; ++i) {
+            bitMask = 0;
+
+            for (int byte = 0; byte < 4; ++byte) {
+                if (mask & (1 << (4 * i + byte))) {
+                    bitMask |= 0xff << (8 * byte);
+                }
+            }
+
+            if (bitMask != 0) {
+                auto& memoryValue = memory_[baseAddress + i];
+                memoryValue &= ~bitMask;
+                memoryValue |= value[i] & bitMask;
+                if (log_stores) {
+                    std::cerr << std::hex << "Store at " << baseAddress << " with value " << value[i] << std::endl;
+                }
+            }
+        }
     }
 
     void ensureEnoughMemory(Address address)
     {
-        if ((address >> 2) >= memory_.size())
-        {
-            memory_.reserve((address >> 2) + 1);
+        auto baseAddress = ((address >> MEMBUS_OFFSET) + 1) << (MEMBUS_OFFSET - 2);
 
-            while ((address >> 2) >= memory_.size())
+        if ((baseAddress) >= memory_.size())
+        {
+            memory_.reserve(baseAddress + 1);
+
+            while ((baseAddress) >= memory_.size())
                 memory_.push_back(0xcafebabe);
         }
     }
 
     VCore& top_;
     std::vector<Word> memory_;
-    Word nextReadWord_;
+    uint32_t nextReadData_[MEMBUS_WORDS];
     vluint64_t nextReadCycle_ = 0;
     vluint8_t nextReadId_;
 };
@@ -282,9 +320,9 @@ int main(int argc, char** argv)
     auto byteDev = ByteDev{*top};
 
     Verilated::traceEverOn(true);
-    auto tracer = std::unique_ptr<VerilatedVcdC>{new VerilatedVcdC};
+    auto tracer = std::unique_ptr<VerilatedFstC>{new VerilatedFstC};
     top->trace(tracer.get(), 99);
-    tracer->open("sim.vcd");
+    tracer->open("sim.fst");
 
     vluint64_t mainTime = 0;
     vluint64_t cycle = 0;
@@ -341,7 +379,9 @@ int main(int argc, char** argv)
             }
         }
 
-        tracer->dump(mainTime);
+        if (trace_dump) {
+            tracer->dump(mainTime);
+        }
 
         mainTime++;
     }

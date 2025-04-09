@@ -28,10 +28,6 @@ class NoPredictionPredictor(fetchStage: Stage, executeStage: Stage)
     stage.input(Data.PREDICTED_PC) := pc
   }
 
-  override def predictionForAddress(address: UInt): UInt = {
-    address + 4
-  }
-
   override def addPredictedPcToBundle(bundle: DynBundle[PipelineData[Data]]): Unit = {
     bundle.addElement(
       Data.PREDICTED_PC.asInstanceOf[PipelineData[Data]],

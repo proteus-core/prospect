@@ -47,7 +47,7 @@ class Scheduler() extends Plugin[DynamicPipeline] with IssueService {
         registerBundle.addElement(register, register.dataType)
       }
 
-      pipeline.rob = new ReorderBuffer(pipeline, 16, registerBundle, cdbBMetaData)
+      pipeline.rob = new ReorderBuffer(pipeline, config.robEntries, registerBundle, cdbBMetaData)
 
       private val rob = pipeline.rob
       rob.build()
@@ -88,7 +88,8 @@ class Scheduler() extends Plugin[DynamicPipeline] with IssueService {
         rs.dispatchStream >> dispatchBus.inputs(index)
       }
 
-      pipeline.components = reservationStations ++ loadManagers :+ dispatcher
+      pipeline.resettables =
+        reservationStations ++ loadManagers :+ dispatcher :+ pipeline.backbone :+ pipeline.rob
 
       // Dispatch
       private val issueStage = pipeline.issuePipeline.stages.last
@@ -120,8 +121,13 @@ class Scheduler() extends Plugin[DynamicPipeline] with IssueService {
       assert(pipeline.rsStages.contains(stage), s"Stage ${stage.stageName} is not an execute stage")
     }
 
+    assert(
+      pipeline.rsStages.size < 64,
+      "Total number of execution units cannot exceed 63 (bitmap stored in 64-bit Long)"
+    )
+
     pipeline.service[DecoderService].configure { config =>
-      var fuMask = 0
+      var fuMask: Long = 0
 
       for (exeStage <- pipeline.rsStages.reverse) {
         val nextBit = if (stages.contains(exeStage)) 1 else 0

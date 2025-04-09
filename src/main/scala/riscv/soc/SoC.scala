@@ -19,7 +19,8 @@ object RamType {
 class SoC(
     ramType: RamType,
     createPipeline: Config => Pipeline,
-    extraDbusReadDelay: Int = 0
+    extraMemBusDelay: Int = 0,
+    applyDelayToIBus: Boolean = false
 ) extends Component {
   setDefinitionName("Core")
 
@@ -34,7 +35,7 @@ class SoC(
     val axi = ramType match {
       case RamType.ExternalAxi4(size) =>
         val axiConfig = Axi4SharedOnChipRam.getAxiConfig(
-          dataWidth = config.xlen,
+          dataWidth = config.memBusWidth,
           byteCount = size,
           idWidth = 4
         )
@@ -71,7 +72,7 @@ class SoC(
       case RamType.OnChipRam(size, initHexFile) =>
         val ram = Axi4SharedOnChipRam(
           byteCount = size,
-          dataWidth = config.xlen,
+          dataWidth = config.memBusWidth,
           idWidth = 4
         )
 
@@ -81,7 +82,7 @@ class SoC(
 
     val apbBridge = Axi4SharedToApb3Bridge(
       addressWidth = config.dbusConfig.addressWidth,
-      dataWidth = config.dbusConfig.dataWidth,
+      dataWidth = config.memBusWidth,
       idWidth = 4
     )
 
@@ -104,23 +105,32 @@ class SoC(
       dbusAxi -> List(ramAxi, apbBridge.io.axi)
     )
 
-    // This pipelining is used to cut combinatorial loops caused by lowLatency=true. It is based on
-    // advice from the Spinal developers: "m2sPipe is a full bandwidth master to slave cut,
-    // s2mPipe is a full bandwidth slave to master cut".
-    // TODO I should really read-up on this pipelining stuff...
-    axiCrossbar.addPipelining(ibusAxi)((ibus, crossbar) => {
-      ibus.readCmd.m2sPipe() >> crossbar.readCmd
-      ibus.readRsp << crossbar.readRsp.s2mPipe()
-    })
-
-    if (extraDbusReadDelay > 0) {
+    if (extraMemBusDelay > 0) {
       axiCrossbar.addPipelining(dbusAxi)((dbus, crossbar) => {
         import Utils._
 
         dbus.sharedCmd >> crossbar.sharedCmd
         dbus.writeData >> crossbar.writeData
-        dbus.readRsp << crossbar.readRsp.stage(extraDbusReadDelay)
+        dbus.readRsp << crossbar.readRsp.stage(extraMemBusDelay)
         dbus.writeRsp << crossbar.writeRsp
+      })
+    }
+
+    if (extraMemBusDelay > 0 && applyDelayToIBus) {
+      axiCrossbar.addPipelining(ibusAxi)((ibus, crossbar) => {
+        import Utils._
+
+        ibus.readCmd.m2sPipe() >> crossbar.readCmd
+        ibus.readRsp << crossbar.readRsp.s2mPipe().stage(extraMemBusDelay)
+      })
+    } else {
+      // This pipelining is used to cut combinatorial loops caused by lowLatency=true. It is based on
+      // advice from the Spinal developers: "m2sPipe is a full bandwidth master to slave cut,
+      // s2mPipe is a full bandwidth slave to master cut".
+      // TODO I should really read-up on this pipelining stuff...
+      axiCrossbar.addPipelining(ibusAxi)((ibus, crossbar) => {
+        ibus.readCmd.m2sPipe() >> crossbar.readCmd
+        ibus.readRsp << crossbar.readRsp.s2mPipe()
       })
     }
 
