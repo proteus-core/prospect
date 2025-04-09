@@ -315,6 +315,18 @@ class ReservationStation(
       cdbStream.valid := cdbWaiting
       dispatchStream.valid := dispatchWaiting
 
+      pipeline.serviceOption[ProspectService] foreach { prospect =>
+        // propagate branch dependencies on the CDB, even during broadcast
+        pipeline
+          .service[BranchService]
+          .pendingBranchOfBundle(cdbStream.payload.metadata)
+          .valid := meta.priorBranch.valid
+        pipeline
+          .service[BranchService]
+          .pendingBranchOfBundle(cdbStream.payload.metadata)
+          .payload := meta.priorBranch.payload.resized
+      }
+
       when(cdbStream.ready && cdbWaiting) {
         cdbWaitingNext := False
       }
