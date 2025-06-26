@@ -129,18 +129,20 @@ class ReservationStation(
       when(branchWaiting.valid && cdbMessage.robIndex === branchWaiting.payload) {
         val pending = pipeline.service[BranchService].pendingBranchOfBundle(cdbMessage.metadata)
         val targetService = pipeline.service[BranchTargetPredictorService]
-        when(pending.valid) {
-          meta.priorBranch.push(pending.payload.resized) // TODO: resized
-        } elsewhen (targetService
-          .predictedPcOfBundle(cdbMessage.metadata) === cdbMessage.metadata.elementAs[UInt](
-          pipeline.data.NEXT_PC.asInstanceOf[PipelineData[Data]]
-        )) { // when the branch was correctly predicted
-          meta.priorBranch.setIdle()
-          when(!currentRs1Prior.valid && !currentRs2Prior.valid) {
-            when(state === State.WAITING_FOR_ARGS) {
-              state := State.EXECUTING
+        val correctlyPredicted =
+          targetService.predictedPcOfBundle(cdbMessage.metadata) === cdbMessage.metadata
+            .elementAs[UInt](pipeline.data.NEXT_PC.asInstanceOf[PipelineData[Data]])
+        when(correctlyPredicted) { // when the branch was correctly predicted
+          when(pending.valid) { // when there is still a pending branch
+            meta.priorBranch.push(pending.payload.resized) // TODO: resized
+          } otherwise {
+            meta.priorBranch.setIdle()
+            when(!currentRs1Prior.valid && !currentRs2Prior.valid) {
+              when(state === State.WAITING_FOR_ARGS) {
+                state := State.EXECUTING
+              }
+              prospectResolved := True
             }
-            prospectResolved := True
           }
         } // otherwise: wait for pipeline reset
       }
