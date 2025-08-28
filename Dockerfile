@@ -7,7 +7,7 @@ ARG BENCHMARKS
 RUN echo "Running benchmarks: ${BENCHMARKS}"
 
 RUN apt-get update
-RUN apt-get -yqq install git lsb-release sudo vim gnupg openjdk-17-jdk verilator curl make gcc g++ python3-pip
+RUN apt-get -yqq install git openjdk-17-jdk verilator curl build-essential python3-pip libz-dev
 
 # Install sbt - https://www.scala-sbt.org/
 RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | tee /etc/apt/sources.list.d/sbt.list
@@ -19,7 +19,7 @@ RUN apt-get -yqq install sbt
 # install vcdvcd (for eval)
 WORKDIR /vcdvcd
 
-RUN git clone --depth=1 --branch v2.3.3 https://github.com/cirosantilli/vcdvcd .
+RUN git clone --depth=1 --branch v2.3.6 https://github.com/cirosantilli/vcdvcd .
 RUN python3 -m pip install --user /vcdvcd
 
 # install gnu toolchain
@@ -27,7 +27,7 @@ WORKDIR /toolchain
 RUN git clone --depth=1 --branch 2023.07.07 https://github.com/riscv/riscv-gnu-toolchain .
 RUN apt-get -yqq install autoconf automake autotools-dev curl python3 libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev libexpat-dev ninja-build
 RUN ./configure --prefix=/opt/riscv --with-arch=rv32im_zicsr --with-abi=ilp32 && \
-    make && \
+    make -j"$(nproc)" && \
     make clean
 
 ENV PATH="${PATH}:/opt/riscv/bin"
@@ -35,6 +35,8 @@ ENV PATH="${PATH}:/opt/riscv/bin"
 # Install baseline version of Proteus
 WORKDIR /proteus-base
 RUN git clone --recurse-submodules --depth=1 --branch v23.02 https://github.com/proteus-core/proteus.git .
+# update SpinalHDL version
+RUN sed -e 's/val spinalVersion = "1.7.3"/val spinalVersion = "1.9.3"/g' -i build.sbt
 # create simulator binary and run riscv-tests
 RUN make -C tests CORE=riscv.CoreDynamicExtMem RISCV_PREFIX=riscv32-unknown-elf
 RUN mv sim/build/sim sim/build/base
@@ -47,6 +49,8 @@ RUN mv sim/build/sim sim/build/base_nodump
 # Install Proteus extended with ProSpeCT
 WORKDIR /prospect
 RUN git clone --recurse-submodules --depth=1 --branch usenix_artifact https://github.com/proteus-core/prospect.git .
+# update SpinalHDL version
+RUN sed -e 's/val spinalVersion = "1.7.3"/val spinalVersion = "1.9.3"/g' -i build.sbt
 # create simulator binary and run riscv-tests
 RUN make -C tests CORE=riscv.CoreDynamicExtMem RISCV_PREFIX=riscv32-unknown-elf
 RUN mv sim/build/sim sim/build/prospect
