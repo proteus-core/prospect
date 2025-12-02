@@ -5,7 +5,7 @@ import spinal.core._
 import spinal.lib._
 
 class ControlSpeculationTracking(implicit config: Config)
-  extends Plugin[Pipeline]
+    extends Plugin[Pipeline]
     with ControlSpeculationService {
 
   object ControlSpeculationTracking {
@@ -36,7 +36,9 @@ class ControlSpeculationTracking(implicit config: Config)
   }
 
   override def isSpeculativeCF(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool = {
-    bundle.elementAs[Bool](ControlSpeculationTracking.CF_SPECULATIVE.asInstanceOf[PipelineData[Data]])
+    bundle.elementAs[Bool](
+      ControlSpeculationTracking.CF_SPECULATIVE.asInstanceOf[PipelineData[Data]]
+    )
   }
 
   override def addIsSpeculativeCF(bundle: DynBundle[PipelineData[Data]]): Unit = {
@@ -47,8 +49,8 @@ class ControlSpeculationTracking(implicit config: Config)
   }
 
   override def speculationDependency(
-                                      bundle: Bundle with DynBundleAccess[PipelineData[Data]]
-                                    ): Flow[UInt] = {
+      bundle: Bundle with DynBundleAccess[PipelineData[Data]]
+  ): Flow[UInt] = {
     bundle.elementAs[Flow[UInt]](
       ControlSpeculationTracking.SPECULATIVE_DEP.asInstanceOf[PipelineData[Data]]
     )

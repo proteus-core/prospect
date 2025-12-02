@@ -132,15 +132,15 @@ class ReservationStation(
     }
 
     pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
-        // keep track of incoming branch updates, even if already executing
-        when(branchWaiting.valid && cdbMessage.robIndex === branchWaiting.payload) {
-          val pending = spec.speculationDependency(cdbMessage.metadata)
-          when(pending.valid) {
-            meta.priorBranch.push(pending.payload)
-          } elsewhen (!spec.isSpeculativeCF(cdbMessage.metadata)) {
-            meta.priorBranch.setIdle()
-          }
+      // keep track of incoming branch updates, even if already executing
+      when(branchWaiting.valid && cdbMessage.robIndex === branchWaiting.payload) {
+        val pending = spec.speculationDependency(cdbMessage.metadata)
+        when(pending.valid) {
+          meta.priorBranch.push(pending.payload)
+        } elsewhen (!spec.isSpeculativeCF(cdbMessage.metadata)) {
+          meta.priorBranch.setIdle()
         }
+      }
     }
 
     when(state === State.WAITING_FOR_ARGS || stateNext === State.WAITING_FOR_ARGS) {
@@ -264,16 +264,18 @@ class ReservationStation(
         spec.isSsbSpeculative(cdbStream.metadata) := meta.loadSpeculation
       }
 
-        pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
-          spec.speculationDependency(cdbStream.payload.metadata) := meta.priorBranch
-          // keep control flow speculation taint if the CF speculation is resolved while still load speculating
-          spec.isSpeculativeCF(cdbStream.metadata) := spec.isSpeculativeCFOutput(exeStage) || (spec
-            .isSpeculativeCFInput(exeStage) && meta.loadSpeculation)
+      pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
+        spec.speculationDependency(cdbStream.payload.metadata) := meta.priorBranch
+        // keep control flow speculation taint if the CF speculation is resolved while still load speculating
+        spec.isSpeculativeCF(cdbStream.metadata) := spec.isSpeculativeCFOutput(exeStage) || (spec
+          .isSpeculativeCFInput(exeStage) && meta.loadSpeculation)
       }
 
       // if the broadcasted address-based PSF prediction turned out to be incorrect, we have to activate the CDB again
       if (config.stlSpec && config.addressBasedPsf) {
-        broadcastedIncorrectPsfPrediction := isLoad && lsu.address(exeStage) =/= psfPredictedAddress &&
+        broadcastedIncorrectPsfPrediction := isLoad && lsu.address(
+          exeStage
+        ) =/= psfPredictedAddress &&
           broadcastedPsfPrediction && !noPsfPrediction
         pipeline.serviceOption[DataSpeculationService] foreach { spec =>
           spec.isPsfSpeculative(cdbStream.metadata) := broadcastedIncorrectPsfPrediction

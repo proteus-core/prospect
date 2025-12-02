@@ -5,7 +5,7 @@ import spinal.core._
 import spinal.lib._
 
 class DataSpeculationTracking(implicit config: Config)
-  extends Plugin[Pipeline]
+    extends Plugin[Pipeline]
     with DataSpeculationService {
 
   object DataSpeculationTracking {

@@ -64,7 +64,10 @@ trait DynamicPipeline extends Pipeline {
       service[FenceService].isFence(stage)
 
       if (config.stlSpec) {
-        assert(hasService[DataSpeculationService], "SSB/PSF speculation requires data speculation tracking")
+        assert(
+          hasService[DataSpeculationService],
+          "SSB/PSF speculation requires data speculation tracking"
+        )
       }
 
       serviceOption[ControlSpeculationService] foreach { spec =>

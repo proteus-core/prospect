@@ -616,7 +616,9 @@ class ReorderBuffer(
 
       if (config.addressBasedPsf) {
         when(
-          pipeline.service[DataSpeculationService].isPsfSpeculative(rdbMessage.registerMap) || (robEntries(
+          pipeline
+            .service[DataSpeculationService]
+            .isPsfSpeculative(rdbMessage.registerMap) || (robEntries(
             rdbMessage.robIndex
           ).registerMap
             .elementAs[Bool](
