@@ -28,7 +28,6 @@ class Lsu(addressStages: Set[Stage], loadStages: Seq[Stage], storeStage: Stage)
     object LSU_IS_EXTERNAL_OP extends PipelineData(Bool())
     object LSU_TARGET_ADDRESS extends PipelineData(UInt(config.xlen bits)) // TODO: Flow?
     object LSU_TARGET_VALID extends PipelineData(Bool())
-    object LSU_STL_SPEC extends PipelineData(Bool())
     object LSU_PSF_ADDRESS extends PipelineData(UInt(config.xlen bits))
     object LSU_PSF_MISSPECULATION extends PipelineData(Bool())
   }
@@ -51,8 +50,7 @@ class Lsu(addressStages: Set[Stage], loadStages: Seq[Stage], storeStage: Stage)
           Data.LSU_OPERATION_TYPE -> LsuOperationType.STORE,
           Data.LSU_ACCESS_WIDTH -> width,
           Data.LSU_IS_EXTERNAL_OP -> True,
-          Data.LSU_TARGET_VALID -> False,
-          Data.LSU_STL_SPEC -> False
+          Data.LSU_TARGET_VALID -> False
         )
       )
     }
@@ -543,21 +541,6 @@ class Lsu(addressStages: Set[Stage], loadStages: Seq[Stage], storeStage: Stage)
 
     addressTranslator = translator
     addressTranslatorChanged = true
-  }
-
-  override def stlSpeculation(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool = {
-    bundle.elementAs[Bool](Data.LSU_STL_SPEC.asInstanceOf[PipelineData[Data]])
-  }
-
-  override def stlSpeculation(stage: Stage): Bool = {
-    stage.output(Data.LSU_STL_SPEC)
-  }
-
-  override def addStlSpeculation(bundle: DynBundle[PipelineData[Data]]): Unit = {
-    bundle.addElement(
-      Data.LSU_STL_SPEC.asInstanceOf[PipelineData[Data]],
-      Data.LSU_STL_SPEC.dataType
-    )
   }
 
   override def psfAddress(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): UInt = {

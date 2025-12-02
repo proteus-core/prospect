@@ -291,8 +291,6 @@ class ReorderBuffer(
       fenceDetected := True
     }
 
-    pipeline.service[LsuService].stlSpeculation(pushedEntry.registerMap) := False
-
     pipeline.serviceOption[SpeculationService] foreach { spec =>
       when(spec.isSpeculativeCFOutput(issueStage)) {
         lastSpeculativeCFInstruction.push(newestIndex)
@@ -509,7 +507,7 @@ class ReorderBuffer(
       )
       val isYounger = relativeIndexForAbsolute(index) > relativeIndexForAbsolute(storeIndex)
 
-      val speculative = pipeline.service[LsuService].stlSpeculation(entry.registerMap)
+      val speculative = pipeline.service[SpeculationService].isSpeculativeMD(entry.registerMap)
 
       val entriesMatch: Bool = if (config.addressBasedSsb) {
         isValidAbsoluteIndex(

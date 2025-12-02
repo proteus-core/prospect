@@ -62,11 +62,13 @@ trait DynamicPipeline extends Pipeline {
       service[BranchTargetPredictorService].predictedPc(stage)
       service[JumpService].jumpRequested(stage)
       service[FenceService].isFence(stage)
-      service[LsuService].stlSpeculation(stage)
+
+      if (config.stlSpec) {
+        assert(hasService[SpeculationService], "SSB/PSF speculation requires data speculation tracking")
+      }
 
       serviceOption[SpeculationService] foreach { spec =>
         spec.isSpeculativeCFOutput(stage)
-        spec.isSpeculativeMDOutput(stage)
       }
     }
 

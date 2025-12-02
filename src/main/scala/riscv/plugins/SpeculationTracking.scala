@@ -48,14 +48,6 @@ class SpeculationTracking(implicit config: Config)
     )
   }
 
-  override def isSpeculativeMDOutput(stage: Stage): Bool = {
-    stage.output(SpeculationTracking.MD_SPECULATIVE)
-  }
-
-  override def isSpeculativeMDInput(stage: Stage): Bool = {
-    stage.input(SpeculationTracking.MD_SPECULATIVE)
-  }
-
   override def isSpeculativeMD(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool = {
     bundle.elementAs[Bool](SpeculationTracking.MD_SPECULATIVE.asInstanceOf[PipelineData[Data]])
   }

@@ -33,10 +33,6 @@ class Scheduler() extends Plugin[DynamicPipeline] with IssueService {
         spec.addSpeculationDependency(cdbBMetaData)
       }
 
-      if (!pipeline.hasService[SpeculationService]) {
-        pipeline.service[LsuService].addStlSpeculation(registerBundle)
-      }
-
       private val ret = pipeline.retirementStage
       private val ls = pipeline.loadStages.head // TODO !!!
       for (

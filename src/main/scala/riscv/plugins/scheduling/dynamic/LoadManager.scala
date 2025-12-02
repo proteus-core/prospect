@@ -61,8 +61,6 @@ class LoadManager(
         lsu.addressOfBundle(targetRobEntry.registerMap) := address
         lsu.addressValidOfBundle(targetRobEntry.registerMap) := True
         when(unknownStore) {
-          lsu.stlSpeculation(storedMessage.registerMap) := True
-          lsu.stlSpeculation(targetRobEntry.registerMap) := True
           pipeline.serviceOption[SpeculationService] foreach { spec =>
             spec.isSpeculativeMD(storedMessage.registerMap) := True
             spec.isSpeculativeMD(targetRobEntry.registerMap) := True
