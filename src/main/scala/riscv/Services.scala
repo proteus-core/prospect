@@ -212,17 +212,11 @@ trait LsuService {
 
   def address(stage: Stage): UInt
 
-  def psfMisspeculation(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
-
-  def addPsfMisspeculation(bundle: DynBundle[PipelineData[Data]]): Unit
-
   def width(
       bundle: Bundle with DynBundleAccess[PipelineData[Data]]
   ): SpinalEnumCraft[LsuAccessWidth.type]
 
   def widthOut(stage: Stage): SpinalEnumCraft[LsuAccessWidth.type]
-
-  def psfMisspeculationRegister: PipelineData[Data]
 }
 
 trait ScheduleService {
@@ -482,14 +476,26 @@ trait Resettable {
 
 trait SpeculationService {
   def isSpeculativeCFOutput(stage: Stage): Bool
+
   def isSpeculativeCFInput(stage: Stage): Bool
+
   def isSpeculativeCF(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
+
   def addIsSpeculativeCF(bundle: DynBundle[PipelineData[Data]]): Unit
+
   def addSpeculationDependency(bundle: DynBundle[PipelineData[Data]]): Unit
+
   def speculationDependency(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Flow[UInt]
+
   def speculativeCFMap(): Map[PipelineData[_ <: Data], Bool]
-  def addIsSpeculativeMD(bundle: DynBundle[PipelineData[Data]]): Unit
-  def isSpeculativeMD(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
+
+  def addIsSsbSpeculative(bundle: DynBundle[PipelineData[Data]]): Unit
+
+  def isSsbSpeculative(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
+
+  def addIsPsfSpeculative(bundle: DynBundle[PipelineData[Data]]): Unit
+
+  def isPsfSpeculative(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
 }
 
 trait FenceService {

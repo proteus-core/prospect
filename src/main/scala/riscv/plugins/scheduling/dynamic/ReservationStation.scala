@@ -159,7 +159,7 @@ class ReservationStation(
         meta.rs1.priorInstruction.valid := False
         r1w := False
         pipeline.serviceOption[SpeculationService] foreach { spec =>
-          when(spec.isSpeculativeMD(cdbMessage.metadata)) {
+          when(spec.isSsbSpeculative(cdbMessage.metadata)) {
             meta.loadSpeculation := True
             lsw := True
           }
@@ -171,7 +171,7 @@ class ReservationStation(
         meta.rs2.priorInstruction.valid := False
         r2w := False
         pipeline.serviceOption[SpeculationService] foreach { spec =>
-          when(spec.isSpeculativeMD(cdbMessage.metadata)) {
+          when(spec.isSsbSpeculative(cdbMessage.metadata)) {
             meta.loadSpeculation := True
             lsw := True
           }
@@ -231,7 +231,7 @@ class ReservationStation(
         state === State.WAITING_FOR_ARGS && !broadcastedPsfPrediction && !activeFlush && !noPsfPrediction
       ) {
         pipeline.serviceOption[SpeculationService] foreach { spec =>
-          spec.isSpeculativeMD(cdbStream.metadata) := True
+          spec.isSsbSpeculative(cdbStream.metadata) := True
         }
         if (config.addressBasedPsf) {
           psfPredictedAddress := rob.previousStoreAddress
@@ -258,7 +258,7 @@ class ReservationStation(
 
       val broadcastedIncorrectPsfPrediction = Bool()
 
-      for (register <- retirementRegisters.keys.filter(e => e != lsu.psfMisspeculationRegister)) {
+      for (register <- retirementRegisters.keys) {
         dispatchStream.payload.registerMap.element(register) := exeStage.output(register)
       }
 
@@ -268,17 +268,21 @@ class ReservationStation(
           // keep control flow speculation taint if the CF speculation is resolved while still load speculating
           spec.isSpeculativeCF(cdbStream.metadata) := spec.isSpeculativeCFOutput(exeStage) || (spec
             .isSpeculativeCFInput(exeStage) && meta.loadSpeculation)
-          spec.isSpeculativeMD(cdbStream.metadata) := meta.loadSpeculation
+          spec.isSsbSpeculative(cdbStream.metadata) := meta.loadSpeculation
         }
       }
 
       // if the broadcasted address-based PSF prediction turned out to be incorrect, we have to activate the CDB again
       if (config.stlSpec && config.addressBasedPsf) {
-        broadcastedIncorrectPsfPrediction := isLoad && lsu.address(
-          exeStage
-        ) =/= psfPredictedAddress && broadcastedPsfPrediction && !noPsfPrediction
-        lsu.psfMisspeculation(cdbStream.metadata) := broadcastedIncorrectPsfPrediction
-        lsu.psfMisspeculation(dispatchStream.registerMap) := broadcastedIncorrectPsfPrediction
+        broadcastedIncorrectPsfPrediction := isLoad && lsu.address(exeStage) =/= psfPredictedAddress &&
+          broadcastedPsfPrediction && !noPsfPrediction
+        pipeline.serviceOption[SpeculationService] foreach { spec =>
+          spec.isPsfSpeculative(cdbStream.metadata) := broadcastedIncorrectPsfPrediction
+          // conditional to avoid assignment overlap
+          when(broadcastedIncorrectPsfPrediction) {
+            spec.isPsfSpeculative(dispatchStream.registerMap) := True
+          }
+        }
       }
 
       pipeline.serviceOption[SpeculationService] match {

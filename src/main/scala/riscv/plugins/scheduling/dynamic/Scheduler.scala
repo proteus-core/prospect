@@ -17,18 +17,16 @@ class Scheduler() extends Plugin[DynamicPipeline] with IssueService {
 
   override def finish(): Unit = {
     pipeline plug new Area {
-      val cdbBMetaData = new DynBundle[PipelineData[spinal.core.Data]]
+      val cdbMetadata = new DynBundle[PipelineData[spinal.core.Data]]
       val registerBundle = new DynBundle[PipelineData[spinal.core.Data]]
 
-      private val lsu = pipeline.service[LsuService]
-      lsu.addPsfMisspeculation(cdbBMetaData)
-      lsu.addPsfMisspeculation(registerBundle)
-
       pipeline.serviceOption[SpeculationService] foreach { spec =>
-        spec.addIsSpeculativeCF(cdbBMetaData)
-        spec.addIsSpeculativeMD(cdbBMetaData)
-        spec.addIsSpeculativeMD(registerBundle)
-        spec.addSpeculationDependency(cdbBMetaData)
+        spec.addIsSpeculativeCF(cdbMetadata)
+        spec.addIsSsbSpeculative(cdbMetadata)
+        spec.addIsSsbSpeculative(registerBundle)
+        spec.addIsPsfSpeculative(cdbMetadata)
+        spec.addIsPsfSpeculative(registerBundle)
+        spec.addSpeculationDependency(cdbMetadata)
       }
 
       private val ret = pipeline.retirementStage
@@ -40,20 +38,20 @@ class Scheduler() extends Plugin[DynamicPipeline] with IssueService {
         registerBundle.addElement(register, register.dataType)
       }
 
-      pipeline.rob = new ReorderBuffer(pipeline, config.robEntries, registerBundle, cdbBMetaData)
+      pipeline.rob = new ReorderBuffer(pipeline, config.robEntries, registerBundle, cdbMetadata)
 
       private val rob = pipeline.rob
       rob.build()
 
       private val reservationStations = pipeline.rsStages.map(stage =>
-        new ReservationStation(stage, rob, pipeline, registerBundle, cdbBMetaData)
+        new ReservationStation(stage, rob, pipeline, registerBundle, cdbMetadata)
       )
 
       private val loadManagers = pipeline.loadStages.map(stage =>
-        new LoadManager(pipeline, stage, rob, registerBundle, cdbBMetaData)
+        new LoadManager(pipeline, stage, rob, registerBundle, cdbMetadata)
       )
 
-      val cdb = new CommonDataBus(reservationStations, rob, cdbBMetaData, loadManagers.size)
+      val cdb = new CommonDataBus(reservationStations, rob, cdbMetadata, loadManagers.size)
       cdb.build()
       for ((rs, index) <- reservationStations.zipWithIndex) {
         rs.build()

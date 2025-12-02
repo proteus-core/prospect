@@ -28,7 +28,6 @@ class Lsu(addressStages: Set[Stage], loadStages: Seq[Stage], storeStage: Stage)
     object LSU_IS_EXTERNAL_OP extends PipelineData(Bool())
     object LSU_TARGET_ADDRESS extends PipelineData(UInt(config.xlen bits)) // TODO: Flow?
     object LSU_TARGET_VALID extends PipelineData(Bool())
-    object LSU_PSF_MISSPECULATION extends PipelineData(Bool())
   }
 
   class DummyFormalService extends FormalService {
@@ -541,18 +540,4 @@ class Lsu(addressStages: Set[Stage], loadStages: Seq[Stage], storeStage: Stage)
     addressTranslator = translator
     addressTranslatorChanged = true
   }
-
-  override def psfMisspeculation(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool = {
-    bundle.elementAs[Bool](Data.LSU_PSF_MISSPECULATION.asInstanceOf[PipelineData[Data]])
-  }
-
-  override def addPsfMisspeculation(bundle: DynBundle[PipelineData[Data]]): Unit = {
-    bundle.addElement(
-      Data.LSU_PSF_MISSPECULATION.asInstanceOf[PipelineData[Data]],
-      Data.LSU_PSF_MISSPECULATION.dataType
-    )
-  }
-
-  override def psfMisspeculationRegister: PipelineData[Data] =
-    Data.LSU_PSF_MISSPECULATION.asInstanceOf[PipelineData[Data]]
 }

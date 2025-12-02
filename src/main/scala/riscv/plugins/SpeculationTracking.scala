@@ -5,12 +5,13 @@ import spinal.core._
 import spinal.lib._
 
 class SpeculationTracking(implicit config: Config)
-    extends Plugin[Pipeline]
+  extends Plugin[Pipeline]
     with SpeculationService {
 
   object SpeculationTracking {
     object CF_SPECULATIVE extends PipelineData(Bool())
-    object MD_SPECULATIVE extends PipelineData(Bool())
+    object SSB_SPECULATIVE extends PipelineData(Bool())
+    object PSF_SPECULATIVE extends PipelineData(Bool())
     object SPECULATIVE_DEP extends PipelineData(Flow(UInt(log2Up(config.robEntries) bits)))
   }
 
@@ -19,7 +20,8 @@ class SpeculationTracking(implicit config: Config)
       config.addDefault(
         Map(
           SpeculationTracking.CF_SPECULATIVE -> False,
-          SpeculationTracking.MD_SPECULATIVE -> False
+          SpeculationTracking.PSF_SPECULATIVE -> False,
+          SpeculationTracking.SSB_SPECULATIVE -> False
         )
       )
     }
@@ -48,20 +50,31 @@ class SpeculationTracking(implicit config: Config)
     )
   }
 
-  override def isSpeculativeMD(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool = {
-    bundle.elementAs[Bool](SpeculationTracking.MD_SPECULATIVE.asInstanceOf[PipelineData[Data]])
+  override def isSsbSpeculative(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool = {
+    bundle.elementAs[Bool](SpeculationTracking.SSB_SPECULATIVE.asInstanceOf[PipelineData[Data]])
   }
 
-  override def addIsSpeculativeMD(bundle: DynBundle[PipelineData[Data]]): Unit = {
+  override def addIsSsbSpeculative(bundle: DynBundle[PipelineData[Data]]): Unit = {
     bundle.addElement(
-      SpeculationTracking.MD_SPECULATIVE.asInstanceOf[PipelineData[Data]],
-      SpeculationTracking.MD_SPECULATIVE.dataType
+      SpeculationTracking.SSB_SPECULATIVE.asInstanceOf[PipelineData[Data]],
+      SpeculationTracking.SSB_SPECULATIVE.dataType
+    )
+  }
+
+  override def isPsfSpeculative(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool = {
+    bundle.elementAs[Bool](SpeculationTracking.PSF_SPECULATIVE.asInstanceOf[PipelineData[Data]])
+  }
+
+  override def addIsPsfSpeculative(bundle: DynBundle[PipelineData[Data]]): Unit = {
+    bundle.addElement(
+      SpeculationTracking.PSF_SPECULATIVE.asInstanceOf[PipelineData[Data]],
+      SpeculationTracking.PSF_SPECULATIVE.dataType
     )
   }
 
   override def speculationDependency(
-      bundle: Bundle with DynBundleAccess[PipelineData[Data]]
-  ): Flow[UInt] = {
+                                      bundle: Bundle with DynBundleAccess[PipelineData[Data]]
+                                    ): Flow[UInt] = {
     bundle.elementAs[Flow[UInt]](
       SpeculationTracking.SPECULATIVE_DEP.asInstanceOf[PipelineData[Data]]
     )
