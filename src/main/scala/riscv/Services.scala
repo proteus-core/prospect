@@ -210,10 +210,6 @@ trait LsuService {
 
   def operationOutput(stage: Stage): SpinalEnumCraft[LsuOperationType.type]
 
-  def psfAddress(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): UInt
-
-  def addPsfAddress(bundle: DynBundle[PipelineData[Data]]): Unit
-
   def address(stage: Stage): UInt
 
   def psfMisspeculation(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool

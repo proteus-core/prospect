@@ -21,10 +21,8 @@ class Scheduler() extends Plugin[DynamicPipeline] with IssueService {
       val registerBundle = new DynBundle[PipelineData[spinal.core.Data]]
 
       private val lsu = pipeline.service[LsuService]
-      lsu.addPsfAddress(cdbBMetaData)
       lsu.addPsfMisspeculation(cdbBMetaData)
       lsu.addPsfMisspeculation(registerBundle)
-      lsu.addPsfAddress(registerBundle)
 
       pipeline.serviceOption[SpeculationService] foreach { spec =>
         spec.addIsSpeculativeCF(cdbBMetaData)

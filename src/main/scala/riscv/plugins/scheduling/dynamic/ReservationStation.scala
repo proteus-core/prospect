@@ -234,7 +234,6 @@ class ReservationStation(
           spec.isSpeculativeMD(cdbStream.metadata) := True
         }
         if (config.addressBasedPsf) {
-          pipeline.service[LsuService].psfAddress(cdbStream.metadata) := rob.previousStoreAddress
           psfPredictedAddress := rob.previousStoreAddress
         }
         cdbStream.payload.writeValue := rob.previousStoreBuffer

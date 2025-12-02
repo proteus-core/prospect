@@ -409,10 +409,6 @@ class ReorderBuffer(
         .element(pipeline.data.RD_DATA_VALID.asInstanceOf[PipelineData[Data]]) := True
     }
 
-    lsu.psfAddress(robEntries(cdbMessage.robIndex).registerMap) := lsu.psfAddress(
-      cdbMessage.metadata
-    )
-
     pipeline.serviceOption[SpeculationService] foreach { spec =>
       // mark PSF speculation
       spec.isSpeculativeMD(robEntries(cdbMessage.robIndex).registerMap) := spec.isSpeculativeMD(

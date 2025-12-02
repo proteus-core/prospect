@@ -138,8 +138,6 @@ class LoadManager(
         cdbStream.valid := True
         cdbStream.payload.writeValue := loadStage.output(pipeline.data.RD_DATA)
         cdbStream.payload.robIndex := storedMessage.robIndex
-        // for loads that did not have a PSF prediction, set the correct address to prevent a pipeline flush
-        lsu.psfAddress(cdbStream.payload.metadata) := address
 
         pipeline.serviceOption[SpeculationService] foreach { spec =>
           spec.isSpeculativeMD(cdbStream.metadata) := spec.isSpeculativeMD(
