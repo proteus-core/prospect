@@ -58,7 +58,7 @@ class ReservationStation(
     with Resettable {
   setPartialName(s"RS_${exeStage.stageName}")
 
-  private val speculationTracking = pipeline.hasService[SpeculationService]
+  private val speculationTracking = pipeline.hasService[DataSpeculationService]
 
   private val meta = InstructionDependencies(rob.indexBits, speculationTracking)
 
@@ -131,8 +131,7 @@ class ReservationStation(
       }
     }
 
-    pipeline.serviceOption[SpeculationService] foreach { spec =>
-      {
+    pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
         // keep track of incoming branch updates, even if already executing
         when(branchWaiting.valid && cdbMessage.robIndex === branchWaiting.payload) {
           val pending = spec.speculationDependency(cdbMessage.metadata)
@@ -142,7 +141,6 @@ class ReservationStation(
             meta.priorBranch.setIdle()
           }
         }
-      }
     }
 
     when(state === State.WAITING_FOR_ARGS || stateNext === State.WAITING_FOR_ARGS) {
@@ -158,7 +156,7 @@ class ReservationStation(
       when(currentRs1Prior.valid && cdbMessage.robIndex === currentRs1Prior.payload) {
         meta.rs1.priorInstruction.valid := False
         r1w := False
-        pipeline.serviceOption[SpeculationService] foreach { spec =>
+        pipeline.serviceOption[DataSpeculationService] foreach { spec =>
           when(spec.isSsbSpeculative(cdbMessage.metadata)) {
             meta.loadSpeculation := True
             lsw := True
@@ -170,7 +168,7 @@ class ReservationStation(
       when(currentRs2Prior.valid && cdbMessage.robIndex === currentRs2Prior.payload) {
         meta.rs2.priorInstruction.valid := False
         r2w := False
-        pipeline.serviceOption[SpeculationService] foreach { spec =>
+        pipeline.serviceOption[DataSpeculationService] foreach { spec =>
           when(spec.isSsbSpeculative(cdbMessage.metadata)) {
             meta.loadSpeculation := True
             lsw := True
@@ -230,7 +228,7 @@ class ReservationStation(
       when(
         state === State.WAITING_FOR_ARGS && !broadcastedPsfPrediction && !activeFlush && !noPsfPrediction
       ) {
-        pipeline.serviceOption[SpeculationService] foreach { spec =>
+        pipeline.serviceOption[DataSpeculationService] foreach { spec =>
           spec.isSsbSpeculative(cdbStream.metadata) := True
         }
         if (config.addressBasedPsf) {
@@ -262,21 +260,22 @@ class ReservationStation(
         dispatchStream.payload.registerMap.element(register) := exeStage.output(register)
       }
 
-      pipeline.serviceOption[SpeculationService] foreach { spec =>
-        {
+      pipeline.serviceOption[DataSpeculationService] foreach { spec =>
+        spec.isSsbSpeculative(cdbStream.metadata) := meta.loadSpeculation
+      }
+
+        pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
           spec.speculationDependency(cdbStream.payload.metadata) := meta.priorBranch
           // keep control flow speculation taint if the CF speculation is resolved while still load speculating
           spec.isSpeculativeCF(cdbStream.metadata) := spec.isSpeculativeCFOutput(exeStage) || (spec
             .isSpeculativeCFInput(exeStage) && meta.loadSpeculation)
-          spec.isSsbSpeculative(cdbStream.metadata) := meta.loadSpeculation
-        }
       }
 
       // if the broadcasted address-based PSF prediction turned out to be incorrect, we have to activate the CDB again
       if (config.stlSpec && config.addressBasedPsf) {
         broadcastedIncorrectPsfPrediction := isLoad && lsu.address(exeStage) =/= psfPredictedAddress &&
           broadcastedPsfPrediction && !noPsfPrediction
-        pipeline.serviceOption[SpeculationService] foreach { spec =>
+        pipeline.serviceOption[DataSpeculationService] foreach { spec =>
           spec.isPsfSpeculative(cdbStream.metadata) := broadcastedIncorrectPsfPrediction
           // conditional to avoid assignment overlap
           when(broadcastedIncorrectPsfPrediction) {
@@ -285,7 +284,7 @@ class ReservationStation(
         }
       }
 
-      pipeline.serviceOption[SpeculationService] match {
+      pipeline.serviceOption[ControlSpeculationService] match {
         case Some(spec) =>
           val condition = Bool()
 

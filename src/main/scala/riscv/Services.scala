@@ -474,7 +474,18 @@ trait Resettable {
   def pipelineReset(): Unit
 }
 
-trait SpeculationService {
+trait DataSpeculationService {
+
+  def addIsSsbSpeculative(bundle: DynBundle[PipelineData[Data]]): Unit
+
+  def isSsbSpeculative(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
+
+  def addIsPsfSpeculative(bundle: DynBundle[PipelineData[Data]]): Unit
+
+  def isPsfSpeculative(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
+}
+
+trait ControlSpeculationService {
   def isSpeculativeCFOutput(stage: Stage): Bool
 
   def isSpeculativeCFInput(stage: Stage): Bool
@@ -488,14 +499,6 @@ trait SpeculationService {
   def speculationDependency(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Flow[UInt]
 
   def speculativeCFMap(): Map[PipelineData[_ <: Data], Bool]
-
-  def addIsSsbSpeculative(bundle: DynBundle[PipelineData[Data]]): Unit
-
-  def isSsbSpeculative(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
-
-  def addIsPsfSpeculative(bundle: DynBundle[PipelineData[Data]]): Unit
-
-  def isPsfSpeculative(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
 }
 
 trait FenceService {

@@ -195,7 +195,7 @@ class ReorderBuffer(
             entry.invalidated := True
           } otherwise {
             // if there are still valid control-flow speculation instructions, set the youngest one as the last
-            pipeline.serviceOption[SpeculationService] foreach { spec =>
+            pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
               when(spec.isSpeculativeCF(entry.registerMap)) {
                 lastSpeculativeCFInstruction.push(absolute)
               }
@@ -291,12 +291,15 @@ class ReorderBuffer(
       fenceDetected := True
     }
 
-    pipeline.serviceOption[SpeculationService] foreach { spec =>
+    pipeline.serviceOption[DataSpeculationService] foreach { spec =>
+      spec.isSsbSpeculative(pushedEntry.registerMap) := False
+    }
+
+    pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
       when(spec.isSpeculativeCFOutput(issueStage)) {
         lastSpeculativeCFInstruction.push(newestIndex)
       }
       spec.isSpeculativeCF(pushedEntry.registerMap) := spec.isSpeculativeCFOutput(issueStage)
-      spec.isSsbSpeculative(pushedEntry.registerMap) := False
     }
 
     val rs1 = Flow(UInt(5 bits))
@@ -348,7 +351,7 @@ class ReorderBuffer(
         rsMeta.updatingInstructionValue := entry.registerMap.elementAs[UInt](
           pipeline.data.RD_DATA.asInstanceOf[PipelineData[Data]]
         )
-        pipeline.serviceOption[SpeculationService] foreach { spec =>
+        pipeline.serviceOption[DataSpeculationService] foreach { spec =>
           rsMeta.updatingInstructionLoadSpeculation := spec.isSsbSpeculative(entry.registerMap)
         }
       }
@@ -370,7 +373,7 @@ class ReorderBuffer(
   override def onCdbMessage(cdbMessage: CdbMessage): Unit = {
     // TODO: the PSF update logic is probably way too complicated...
     if (config.addressBasedPsf) {
-      when(pipeline.service[SpeculationService].isPsfSpeculative(cdbMessage.metadata)) {
+      when(pipeline.service[DataSpeculationService].isPsfSpeculative(cdbMessage.metadata)) {
         robEntries(cdbMessage.robIndex).cdbUpdated := robEntries(
           cdbMessage.robIndex
         ).rdbUpdated || (currentRdbUpdate.valid && currentRdbUpdate.payload === cdbMessage.robIndex)
@@ -408,11 +411,7 @@ class ReorderBuffer(
         .element(pipeline.data.RD_DATA_VALID.asInstanceOf[PipelineData[Data]]) := True
     }
 
-    pipeline.serviceOption[SpeculationService] foreach { spec =>
-      // mark PSF speculation
-      spec.isSsbSpeculative(robEntries(cdbMessage.robIndex).registerMap) := spec.isSsbSpeculative(
-        cdbMessage.metadata
-      )
+    pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
       spec.isSpeculativeCF(robEntries(cdbMessage.robIndex).registerMap) := spec.isSpeculativeCF(
         cdbMessage.metadata
       )
@@ -425,6 +424,13 @@ class ReorderBuffer(
       ) {
         lastSpeculativeCFInstruction := spec.speculationDependency(cdbMessage.metadata).resized
       }
+    }
+
+    pipeline.serviceOption[DataSpeculationService] foreach { spec =>
+      // mark PSF speculation
+      spec.isSsbSpeculative(robEntries(cdbMessage.robIndex).registerMap) := spec.isSsbSpeculative(
+        cdbMessage.metadata
+      )
     }
   }
 
@@ -502,7 +508,7 @@ class ReorderBuffer(
       )
       val isYounger = relativeIndexForAbsolute(index) > relativeIndexForAbsolute(storeIndex)
 
-      val speculative = pipeline.service[SpeculationService].isSsbSpeculative(entry.registerMap)
+      val speculative = pipeline.service[DataSpeculationService].isSsbSpeculative(entry.registerMap)
 
       val entriesMatch: Bool = if (config.addressBasedSsb) {
         isValidAbsoluteIndex(
@@ -610,7 +616,7 @@ class ReorderBuffer(
 
       if (config.addressBasedPsf) {
         when(
-          pipeline.service[SpeculationService].isPsfSpeculative(rdbMessage.registerMap) || (robEntries(
+          pipeline.service[DataSpeculationService].isPsfSpeculative(rdbMessage.registerMap) || (robEntries(
             rdbMessage.robIndex
           ).registerMap
             .elementAs[Bool](

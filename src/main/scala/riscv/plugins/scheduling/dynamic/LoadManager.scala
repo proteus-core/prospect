@@ -61,7 +61,7 @@ class LoadManager(
         lsu.addressOfBundle(targetRobEntry.registerMap) := address
         lsu.addressValidOfBundle(targetRobEntry.registerMap) := True
         when(unknownStore) {
-          pipeline.serviceOption[SpeculationService] foreach { spec =>
+          pipeline.serviceOption[DataSpeculationService] foreach { spec =>
             spec.isSsbSpeculative(storedMessage.registerMap) := True
             spec.isSsbSpeculative(targetRobEntry.registerMap) := True
           }
@@ -108,7 +108,7 @@ class LoadManager(
       }
     }
 
-    pipeline.serviceOption[SpeculationService] foreach { spec =>
+    pipeline.serviceOption[DataSpeculationService] foreach { spec =>
       spec.isPsfSpeculative(resultCdbMessage.metadata) := False
     }
 
@@ -140,7 +140,7 @@ class LoadManager(
         cdbStream.payload.writeValue := loadStage.output(pipeline.data.RD_DATA)
         cdbStream.payload.robIndex := storedMessage.robIndex
 
-        pipeline.serviceOption[SpeculationService] foreach { spec =>
+        pipeline.serviceOption[DataSpeculationService] foreach { spec =>
           spec.isSsbSpeculative(cdbStream.metadata) := spec.isSsbSpeculative(
             storedMessage.registerMap
           )
