@@ -32,6 +32,11 @@ class Scheduler() extends Plugin[DynamicPipeline] with IssueService {
         spec.addIsPsfSpeculative(registerBundle)
       }
 
+      pipeline.serviceOption[PipelineTaintService] foreach { tracking =>
+        tracking.addTaintToBundle(cdbMetadata)
+        tracking.addTaintToBundle(registerBundle)
+      }
+
       private val ret = pipeline.retirementStage
       private val ls = pipeline.loadStages.head // TODO !!!
       for (

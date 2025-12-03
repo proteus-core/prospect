@@ -9,12 +9,17 @@ case class RegisterSource(indexBits: BitCount) extends Bundle {
   val priorInstruction: Flow[UInt] =
     RegNext(priorInstructionNext).init(priorInstructionNext.getZero)
 
+  val taintedNext: Bool = Bool()
+  val tainted: Bool = RegNext(taintedNext).init(False)
+
   def build(): Unit = {
     priorInstructionNext := priorInstruction
+    taintedNext := tainted
   }
 
   def reset(): Unit = {
     priorInstructionNext.setIdle()
+    taintedNext := False
   }
 }
 
@@ -109,6 +114,13 @@ class ReservationStation(
     val currentLoadSpeculation = if (speculationTracking) Bool() else null
     val branchWaiting: Flow[UInt] = if (speculationTracking) Flow(UInt(rob.indexBits)) else null
 
+    val rs1Tainted = Bool()
+    val rs2Tainted = Bool()
+    if (!pipeline.hasService[PipelineTaintService]) {
+      rs1Tainted := False
+      rs2Tainted := False
+    }
+
     when(state === State.EXECUTING || state === State.BROADCASTING_RESULT) {
       when(cdbMessage.robIndex === robEntryIndex) {
         cdbWaiting := False
@@ -122,12 +134,20 @@ class ReservationStation(
         branchWaiting := meta.priorBranch
         currentLoadSpeculation := meta.loadSpeculation
       }
+      if (pipeline.hasService[PipelineTaintService]) {
+        rs1Tainted := meta.rs1.tainted
+        rs2Tainted := meta.rs2.tainted
+      }
     } otherwise {
       currentRs1Prior := meta.rs1.priorInstructionNext
       currentRs2Prior := meta.rs2.priorInstructionNext
       if (speculationTracking) {
         branchWaiting := meta.priorBranchNext
         currentLoadSpeculation := meta.loadSpeculationNext
+      }
+      if (pipeline.hasService[PipelineTaintService]) {
+        rs1Tainted := meta.rs1.taintedNext
+        rs2Tainted := meta.rs2.taintedNext
       }
     }
 
@@ -152,6 +172,10 @@ class ReservationStation(
       if (speculationTracking) {
         lsw := currentLoadSpeculation
       }
+      val tnt1 = Bool()
+      tnt1 := rs1Tainted
+      val tnt2 = Bool()
+      tnt2 := rs2Tainted
 
       when(currentRs1Prior.valid && cdbMessage.robIndex === currentRs1Prior.payload) {
         meta.rs1.priorInstruction.valid := False
@@ -161,6 +185,10 @@ class ReservationStation(
             meta.loadSpeculation := True
             lsw := True
           }
+        }
+        pipeline.serviceOption[PipelineTaintService] foreach { tracking =>
+          tnt1 := tracking.tainted(cdbMessage.metadata)
+          meta.rs1.tainted := tracking.tainted(cdbMessage.metadata)
         }
         regs.setReg(pipeline.data.RS1_DATA, cdbMessage.writeValue)
       }
@@ -173,6 +201,10 @@ class ReservationStation(
             meta.loadSpeculation := True
             lsw := True
           }
+        }
+        pipeline.serviceOption[PipelineTaintService] foreach { tracking =>
+          tnt2 := tracking.tainted(cdbMessage.metadata)
+          meta.rs2.tainted := tracking.tainted(cdbMessage.metadata)
         }
         regs.setReg(pipeline.data.RS2_DATA, cdbMessage.writeValue)
       }
@@ -269,6 +301,14 @@ class ReservationStation(
         // keep control flow speculation taint if the CF speculation is resolved while still load speculating
         spec.isSpeculativeCF(cdbStream.metadata) := spec.isSpeculativeCFOutput(exeStage) || (spec
           .isSpeculativeCFInput(exeStage) && meta.loadSpeculation)
+      }
+
+      pipeline.serviceOption[PipelineTaintService] foreach { tracking =>
+        val outputTainted = meta.rs1.tainted || meta.rs2.tainted
+        tracking.tainted(cdbStream.payload.metadata) := outputTainted
+        when(outputTainted) {
+          tracking.tainted(dispatchStream.payload.registerMap) := True
+        }
       }
 
       // if the broadcasted address-based PSF prediction turned out to be incorrect, we have to activate the CDB again
@@ -394,17 +434,24 @@ class ReservationStation(
     def dependencySetup(
         metaRs: RegisterSource,
         rsData: Flow[RsData],
-        regData: PipelineData[UInt]
+        regData: PipelineData[UInt],
+        regId: PipelineData[UInt]
     ): Unit = {
       when(rsData.valid) {
         when(rsData.payload.updatingInstructionFound) {
           when(rsData.payload.updatingInstructionFinished) {
             regs.setReg(regData, rsData.payload.updatingInstructionValue)
+            pipeline.serviceOption[PipelineTaintService] foreach { tracking =>
+              metaRs.taintedNext := rsData.tainted
+            }
           } otherwise {
             metaRs.priorInstructionNext.push(rsData.payload.updatingInstructionIndex)
           }
         } otherwise {
           regs.setReg(regData, issueStage.output(regData))
+          pipeline.serviceOption[PipelineTaintService] foreach { tracking =>
+            metaRs.taintedNext := tracking.registerTaint(issueStage.output(regId))
+          }
         }
         when(
           rsData.payload.updatingInstructionFound && !rsData.payload.updatingInstructionFinished
@@ -414,8 +461,8 @@ class ReservationStation(
       }
     }
 
-    dependencySetup(meta.rs1, entryMeta.rs1Data, pipeline.data.RS1_DATA)
-    dependencySetup(meta.rs2, entryMeta.rs2Data, pipeline.data.RS2_DATA)
+    dependencySetup(meta.rs1, entryMeta.rs1Data, pipeline.data.RS1_DATA, pipeline.data.RS1)
+    dependencySetup(meta.rs2, entryMeta.rs2Data, pipeline.data.RS2_DATA, pipeline.data.RS2)
 
     if (speculationTracking) {
       meta.loadSpeculationNext := entryMeta.rs1Data.updatingInstructionLoadSpeculation || entryMeta.rs2Data.updatingInstructionLoadSpeculation

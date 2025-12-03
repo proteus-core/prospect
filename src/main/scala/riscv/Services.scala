@@ -501,6 +501,19 @@ trait ControlSpeculationService {
   def speculativeCFMap(): Map[PipelineData[_ <: Data], Bool]
 }
 
+trait PipelineTaintService {
+
+  def tainted(stage: Stage): Bool
+
+  def taintedPipelineReg(reg: PipelineData[Data]): Boolean
+
+  def tainted(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
+
+  def addTaintToBundle(bundle: DynBundle[PipelineData[Data]]): Unit
+
+  def registerTaint(regId: UInt): Bool
+}
+
 trait FenceService {
   def isFence(stage: Stage): Bool
 }

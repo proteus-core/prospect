@@ -146,6 +146,10 @@ class LoadManager(
           )
         }
 
+        pipeline.serviceOption[PipelineTaintService] foreach { tracking =>
+          tracking.tainted(cdbStream.metadata) := tracking.tainted(loadStage)
+        }
+
         resultCdbMessage := cdbStream.payload
 
         rdbWaitingNext := !rdbStream.ready

@@ -25,6 +25,7 @@ case class RsData(indexBits: BitCount)(implicit config: Config) extends Bundle {
   val updatingInstructionIndex = UInt(indexBits)
   val updatingInstructionValue = UInt(config.xlen bits)
   val updatingInstructionLoadSpeculation = Bool()
+  val tainted = Bool() // TODO: both for this and the above, remove when unused
 }
 
 case class EntryMetadata(indexBits: BitCount)(implicit config: Config) extends Bundle {
@@ -302,6 +303,10 @@ class ReorderBuffer(
       spec.isSpeculativeCF(pushedEntry.registerMap) := spec.isSpeculativeCFOutput(issueStage)
     }
 
+    pipeline.serviceOption[PipelineTaintService] foreach { tracking =>
+      tracking.tainted(pushedEntry.registerMap) := False
+    }
+
     val rs1 = Flow(UInt(5 bits))
     val rs2 = Flow(UInt(5 bits))
 
@@ -353,6 +358,9 @@ class ReorderBuffer(
         )
         pipeline.serviceOption[DataSpeculationService] foreach { spec =>
           rsMeta.updatingInstructionLoadSpeculation := spec.isSsbSpeculative(entry.registerMap)
+        }
+        pipeline.serviceOption[PipelineTaintService] foreach { tracking =>
+          rsMeta.tainted := tracking.tainted(entry.registerMap)
         }
       }
     }
@@ -429,6 +437,12 @@ class ReorderBuffer(
     pipeline.serviceOption[DataSpeculationService] foreach { spec =>
       // mark PSF speculation
       spec.isSsbSpeculative(robEntries(cdbMessage.robIndex).registerMap) := spec.isSsbSpeculative(
+        cdbMessage.metadata
+      )
+    }
+
+    pipeline.serviceOption[PipelineTaintService] foreach { tracking =>
+      tracking.tainted(robEntries(cdbMessage.robIndex).registerMap) := tracking.tainted(
         cdbMessage.metadata
       )
     }
@@ -729,6 +743,21 @@ class ReorderBuffer(
       when(ret.arbitration.isDone) {
         willRetire := True
         isFullNext := False
+
+        pipeline.serviceOption[PipelineTaintService] foreach { tracking =>
+          val regId = oldestEntry.registerMap.elementAs[UInt](
+            pipeline.data.RD.asInstanceOf[PipelineData[Data]]
+          )
+          val tainted = tracking.tainted(oldestEntry.registerMap)
+          when(
+            regId =/= 0
+              && oldestEntry.registerMap.element(
+                pipeline.data.RD_TYPE.asInstanceOf[PipelineData[Data]]
+              ) === RegisterType.GPR
+          ) {
+            tracking.registerTaint(regId) := tainted
+          }
+        }
 
         when(
           softResetTrigger.valid && oldestIndex === softResetTrigger.payload && !hardResetThisCycle
