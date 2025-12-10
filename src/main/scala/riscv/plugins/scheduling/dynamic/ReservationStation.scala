@@ -209,7 +209,9 @@ class ReservationStation(
         regs.setReg(pipeline.data.RS2_DATA, cdbMessage.writeValue)
       }
 
-      when(!r1w && !r2w && !softFlush) {
+      val startExecution = !r1w && !r2w && !softFlush
+
+      when(startExecution) {
         // This is the only place where state is written directly (instead of
         // via stateNext). This ensures that we have priority over whatever
         // execute() writes to it which means that the order of calling
