@@ -514,6 +514,9 @@ trait PipelineTaintService {
   def registerTaint(regId: UInt): Bool
 }
 
+trait ProSpeCTService {
+}
+
 trait FenceService {
   def isFence(stage: Stage): Bool
 }

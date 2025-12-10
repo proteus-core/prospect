@@ -290,8 +290,10 @@ object createDynamicPipeline {
         new Timers,
         new Fence(pipeline.rsStages.toSet),
         new Marker,
+        new ControlSpeculationTracking,
         new DataSpeculationTracking,
-        new PipelineTaintTracking
+        new PipelineTaintTracking,
+        new prospect.ProSpeCT
       ) ++ extraPlugins
     )
 
