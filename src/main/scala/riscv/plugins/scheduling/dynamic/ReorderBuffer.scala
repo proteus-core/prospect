@@ -197,7 +197,8 @@ class ReorderBuffer(
           } otherwise {
             // if there are still valid control-flow speculation instructions, set the youngest one as the last
             pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
-              when(spec.isSpeculativeCF(entry.registerMap)) {
+              when(spec.isSpeculativeCF(entry.registerMap) && absolute =/= lastCorrectId) {
+                // TODO: is it possible that an instruction will still be CF-speculative but causes a soft reset through other speculation? then we need to remove the condition above and figure it out differently
                 lastSpeculativeCFInstruction.push(absolute)
               }
             }
@@ -276,8 +277,7 @@ class ReorderBuffer(
       .output(pipeline.data.PC)
     pushedEntry.registerMap.element(
       pipeline.data.NEXT_PC.asInstanceOf[PipelineData[Data]]
-    ) := issueStage
-      .output(pipeline.data.NEXT_PC)
+    ) := issueStage.output(pipeline.data.NEXT_PC)
     pushedEntry.registerMap.element(pipeline.data.RD.asInstanceOf[PipelineData[Data]]) := issueStage
       .output(pipeline.data.RD)
     pushedEntry.registerMap.element(
