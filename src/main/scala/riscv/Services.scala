@@ -476,42 +476,27 @@ trait Resettable {
 }
 
 trait DataSpeculationService {
-
   def addIsSsbSpeculative(bundle: DynBundle[PipelineData[Data]]): Unit
-
   def isSsbSpeculative(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
-
   def addIsPsfSpeculative(bundle: DynBundle[PipelineData[Data]]): Unit
-
   def isPsfSpeculative(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
 }
 
 trait ControlSpeculationService {
   def isSpeculativeCFOutput(stage: Stage): Bool
-
   def isSpeculativeCFInput(stage: Stage): Bool
-
   def isSpeculativeCF(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
-
   def addIsSpeculativeCF(bundle: DynBundle[PipelineData[Data]]): Unit
-
   def addSpeculationDependency(bundle: DynBundle[PipelineData[Data]]): Unit
-
   def speculationDependency(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Flow[UInt]
-
   def speculativeCFMap(): Map[PipelineData[_ <: Data], Bool]
 }
 
 trait PipelineTaintService {
-
   def tainted(stage: Stage): Bool
-
   def taintedPipelineReg(reg: PipelineData[Data]): Boolean
-
   def tainted(bundle: Bundle with DynBundleAccess[PipelineData[Data]]): Bool
-
   def addTaintToBundle(bundle: DynBundle[PipelineData[Data]]): Unit
-
   def registerTaint(regId: UInt): Bool
 }
 
