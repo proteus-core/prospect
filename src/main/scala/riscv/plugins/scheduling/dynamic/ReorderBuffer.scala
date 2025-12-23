@@ -380,7 +380,7 @@ class ReorderBuffer(
 
   override def onCdbMessage(cdbMessage: CdbMessage): Unit = {
     // TODO: the PSF update logic is probably way too complicated...
-    if (config.addressBasedPsf) {
+    if (config.stlSpec && config.addressBasedPsf) {
       when(pipeline.service[DataSpeculationService].isPsfSpeculative(cdbMessage.metadata)) {
         robEntries(cdbMessage.robIndex).cdbUpdated := robEntries(
           cdbMessage.robIndex
