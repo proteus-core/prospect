@@ -342,7 +342,9 @@ class ReservationStation(
           }
         case None =>
           if (config.stlSpec && config.addressBasedPsf) {
-            condition := exeStage.output(pipeline.data.RD_DATA_VALID) || broadcastedIncorrectPsfPrediction
+            condition := exeStage.output(
+              pipeline.data.RD_DATA_VALID
+            ) || broadcastedIncorrectPsfPrediction
           } else {
             condition := exeStage.output(pipeline.data.RD_DATA_VALID)
           }
