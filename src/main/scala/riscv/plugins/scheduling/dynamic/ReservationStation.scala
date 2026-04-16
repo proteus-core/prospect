@@ -157,8 +157,10 @@ class ReservationStation(
         val pending = spec.speculationDependency(cdbMessage.metadata)
         when(pending.valid) {
           meta.priorBranch.push(pending.payload)
+          spec.speculationDependency(resultCdbMessage.metadata).push(pending.payload)
         } elsewhen (!spec.isSpeculativeCF(cdbMessage.metadata)) {
           meta.priorBranch.setIdle()
+          spec.speculationDependency(resultCdbMessage.metadata).setIdle()
         }
       }
     }
