@@ -157,10 +157,8 @@ class ReservationStation(
         val pending = spec.speculationDependency(cdbMessage.metadata)
         when(pending.valid) {
           meta.priorBranch.push(pending.payload)
-          spec.speculationDependency(resultCdbMessage.metadata).push(pending.payload)
         } elsewhen (!spec.isSpeculativeCF(cdbMessage.metadata)) {
           meta.priorBranch.setIdle()
-          spec.speculationDependency(resultCdbMessage.metadata).setIdle()
         }
       }
     }
@@ -239,6 +237,12 @@ class ReservationStation(
     cdbStream.valid := False
     cdbStream.payload := resultCdbMessage
 
+    pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
+      when(spec.speculationDependency(resultCdbMessage.metadata) =/= meta.priorBranch) {
+        spec.speculationDependency(cdbStream.payload.metadata) := meta.priorBranch
+      }
+    }
+
     regs.shift := False
 
     exeStage.arbitration.isStalled := state === State.WAITING_FOR_ARGS
@@ -301,7 +305,6 @@ class ReservationStation(
       }
 
       pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
-        spec.speculationDependency(cdbStream.payload.metadata) := meta.priorBranch
         // keep control flow speculation taint if the CF speculation is resolved while still load speculating
         spec.isSpeculativeCF(cdbStream.metadata) := spec.isSpeculativeCFOutput(exeStage) || (spec
           .isSpeculativeCFInput(exeStage) && meta.loadSpeculation)

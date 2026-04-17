@@ -285,6 +285,7 @@ object createDynamicPipeline {
         new Fence(pipeline.rsStages.toSet),
         new Marker,
         new DataSpeculationTracking,
+        new ControlSpeculationTracking,
         new PipelineTaintTracking
       ) ++ extraPlugins
     )
