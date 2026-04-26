@@ -244,6 +244,12 @@ class ReservationStation(
     cdbStream.valid := False
     cdbStream.payload := resultCdbMessage
 
+    pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
+      when(spec.speculationDependency(resultCdbMessage.metadata) =/= meta.priorBranch) {
+        spec.speculationDependency(cdbStream.payload.metadata) := meta.priorBranch
+      }
+    }
+
     regs.shift := False
 
     exeStage.arbitration.isStalled := state === State.WAITING_FOR_ARGS
@@ -295,7 +301,7 @@ class ReservationStation(
 
       val isLoad = lsu.operationOutput(exeStage) === LsuOperationType.LOAD
 
-      val broadcastedIncorrectPsfPrediction = Bool()
+      val broadcastedIncorrectPsfPrediction: Bool = if (config.stlSpec) Bool() else null
 
       for (register <- retirementRegisters.keys) {
         dispatchStream.payload.registerMap.element(register) := exeStage.output(register)
@@ -306,7 +312,6 @@ class ReservationStation(
       }
 
       pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
-        spec.speculationDependency(cdbStream.payload.metadata) := meta.priorBranch
         // keep control flow speculation taint if the CF speculation is resolved while still load speculating
         spec.isSpeculativeCF(cdbStream.metadata) := spec.isSpeculativeCFOutput(exeStage) || (spec
           .isSpeculativeCFInput(exeStage) && meta.loadSpeculation)
@@ -336,10 +341,10 @@ class ReservationStation(
         }
       }
 
+      val condition = Bool()
+
       pipeline.serviceOption[ControlSpeculationService] match {
         case Some(spec) =>
-          val condition = Bool()
-
           if (config.stlSpec && config.addressBasedPsf) {
             condition := exeStage.output(pipeline.data.RD_DATA_VALID) ||
               spec.isSpeculativeCFInput(exeStage) || broadcastedIncorrectPsfPrediction
@@ -348,16 +353,18 @@ class ReservationStation(
               exeStage
             )
           }
-
-          when(condition) {
-            cdbStream.valid := True
-          }
         case None =>
-          when(
-            exeStage.output(pipeline.data.RD_DATA_VALID) || broadcastedIncorrectPsfPrediction
-          ) {
-            cdbStream.valid := True
+          if (config.stlSpec && config.addressBasedPsf) {
+            condition := exeStage.output(
+              pipeline.data.RD_DATA_VALID
+            ) || broadcastedIncorrectPsfPrediction
+          } else {
+            condition := exeStage.output(pipeline.data.RD_DATA_VALID)
           }
+      }
+
+      when(condition) {
+        cdbStream.valid := True
       }
 
       dispatchStream.payload.willCdbUpdate := cdbStream.valid || isLoad
