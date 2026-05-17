@@ -93,6 +93,8 @@ class ReorderBuffer(
   val pushedEntry = RobEntry(retirementRegisters)
   pushedEntry := RobEntry(retirementRegisters).getZero
 
+  val lsuService = pipeline.service[LsuService]
+
   /*
    * data structures related to speculative store bypass (SSB)
    */
@@ -103,6 +105,7 @@ class ReorderBuffer(
   private val currentlyInsertingStore = Flow(UInt(config.xlen bits))
   currentlyInsertingStore.setIdle()
 
+  // TODO: these predictors should only be created if config.stlSpec is set!
   val ssbPredictorNumEntries = 12
   private val ssbPredictorEntries =
     Vec.fill(ssbPredictorNumEntries)(RegInit(UInt(config.xlen bits).getZero))
@@ -283,10 +286,8 @@ class ReorderBuffer(
     pushedEntry.registerMap.element(
       pipeline.data.RD_TYPE.asInstanceOf[PipelineData[Data]]
     ) := issueStage.output(pipeline.data.RD_TYPE)
-    pipeline.service[LsuService].operationOfBundle(pushedEntry.registerMap) := pipeline
-      .service[LsuService]
-      .operationOutput(issueStage)
-    pipeline.service[LsuService].addressValidOfBundle(pushedEntry.registerMap) := False
+    lsuService.operationOfBundle(pushedEntry.registerMap) := lsuService.operationOutput(issueStage)
+    lsuService.addressValidOfBundle(pushedEntry.registerMap) := False
 
     when(pipeline.service[FenceService].isFence(issueStage)) {
       fenceDetected := True
@@ -318,6 +319,11 @@ class ReorderBuffer(
 
     val meta = bookkeeping(rs1, rs2)
 
+    /**
+     * For PSF and SSB, we store a table of instruction addresses that triggered
+     * mispredictions in the past to avoid predictions on them again (a very basic
+     * form of selective PSF/SSB).
+     */
     if (config.stlSpec) {
       meta.preventPsf := findPsfPredictorEntry(issueStage.output(pipeline.data.PC))
       pushedEntry.preventSsb := findSsbPredictorEntry(issueStage.output(pipeline.data.PC))
@@ -468,7 +474,6 @@ class ReorderBuffer(
       val index = UInt(indexBits)
       index := nth
 
-      val lsuService = pipeline.service[LsuService]
       val entryIsStore = lsuService.operationOfBundle(entry.registerMap) === LsuOperationType.STORE
       val entryAddressValid = lsuService.addressValidOfBundle(entry.registerMap)
       val entryAddress = lsuService.addressOfBundle(entry.registerMap)
@@ -502,7 +507,6 @@ class ReorderBuffer(
     val found = Bool()
     found := False
 
-    val lsuService = pipeline.service[LsuService]
     val wordAddress = byte2WordAddress(storeAddress)
 
     for (nth <- 0 until capacity) {
@@ -544,7 +548,6 @@ class ReorderBuffer(
   def onRdbMessage(rdbMessage: RdbMessage): Unit = {
     val btb = pipeline.service[BranchTargetPredictorService]
     val jmp = pipeline.service[JumpService]
-    val lsu = pipeline.service[LsuService]
 
     currentRdbUpdate.push(rdbMessage.robIndex)
     robEntries(rdbMessage.robIndex).registerMap := rdbMessage.registerMap
@@ -589,14 +592,14 @@ class ReorderBuffer(
 
     if (config.stlSpec) {
       when(
-        lsu.operationOfBundle(rdbMessage.registerMap) === LsuOperationType.STORE
+        lsuService.operationOfBundle(rdbMessage.registerMap) === LsuOperationType.STORE
       ) {
         val storeValue = rdbMessage.registerMap.elementAs[UInt](
           pipeline.data.RS2_DATA.asInstanceOf[PipelineData[Data]]
         )
-        val storeAddress = lsu.addressOfBundle(rdbMessage.registerMap)
+        val storeAddress = lsuService.addressOfBundle(rdbMessage.registerMap)
         currentlyInsertingStore.push(storeAddress)
-        when(lsu.width(rdbMessage.registerMap) === LsuAccessWidth.W) {
+        when(lsuService.width(rdbMessage.registerMap) === LsuAccessWidth.W) {
           // for now, we only predict word memory operation
           previousStoreBuffer := storeValue
           if (config.addressBasedPsf) {
@@ -658,7 +661,7 @@ class ReorderBuffer(
           }
         }
         when(
-          lsu.operationOfBundle(rdbMessage.registerMap) === LsuOperationType.LOAD
+          lsuService.operationOfBundle(rdbMessage.registerMap) === LsuOperationType.LOAD
         ) {
           when(
             (currentCdbUpdate.valid && currentCdbUpdate.payload === rdbMessage.robIndex) || jmp
@@ -672,7 +675,7 @@ class ReorderBuffer(
       } else {
         // detect wrongly forwarded value-based PSF
         when(
-          lsu.operationOfBundle(rdbMessage.registerMap) === LsuOperationType.LOAD && robEntries(
+          lsuService.operationOfBundle(rdbMessage.registerMap) === LsuOperationType.LOAD && robEntries(
             rdbMessage.robIndex
           ).cdbUpdated
         ) {
@@ -728,8 +731,6 @@ class ReorderBuffer(
     for (register <- retirementRegisters.keys) {
       ret.input(register) := oldestEntry.registerMap.element(register)
     }
-
-    val lsuService = pipeline.service[LsuService]
 
     // FIXME this doesn't seem the correct place to do this...
     ret.connectOutputDefaults()
