@@ -60,6 +60,18 @@ class LoadManager(
         // TODO: this is very ugly
         lsu.addressOfBundle(targetRobEntry.registerMap) := address
         lsu.addressValidOfBundle(targetRobEntry.registerMap) := True
+
+        /**
+         * This is speculative store bypass (SSB):
+         * When the ROB contains a store instruction with an unknown address,
+         * we speculate that it will not overlap with the address of the current load,
+         * so we issue this load but mark it as SSB speculative for validation later
+         * once the store address is available.
+         *
+         * To avoid the speculation remaining undetected if the load takes longer than
+         * the address resolution of the store, we immediately set the speculation bit
+         * in the ROB.
+         */
         when(unknownStore) {
           pipeline.serviceOption[DataSpeculationService] foreach { spec =>
             spec.isSsbSpeculative(storedMessage.registerMap) := True

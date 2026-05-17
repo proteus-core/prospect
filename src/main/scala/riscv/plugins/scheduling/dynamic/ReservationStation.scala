@@ -263,8 +263,17 @@ class ReservationStation(
       reset()
     }
 
+    /**
+     * This is predictive store forwarding (PSF):
+     * for appropriate load instructions (indicated by a False broadcastedPsfPrediction)
+     * we broadcast the value of the last store instruction if
+     * the current load address is not yet available.
+     *
+     * This means that loads with a PSF prediction will issue two CDB messages:
+     * this first one is the prediction, then the LoadManager will broadcast
+     * the actual loaded value once the address is resolved and the load executed.
+     */
     if (config.stlSpec) {
-      // when waiting for load address, broadcast a result prediction
       when(
         state === State.WAITING_FOR_ARGS && !broadcastedPsfPrediction && !activeFlush && !noPsfPrediction
       ) {
@@ -294,8 +303,6 @@ class ReservationStation(
 
       val isLoad = lsu.operationOutput(exeStage) === LsuOperationType.LOAD
 
-      val broadcastedIncorrectPsfPrediction: Bool = if (config.stlSpec) Bool() else null
-
       for (register <- retirementRegisters.keys) {
         dispatchStream.payload.registerMap.element(register) := exeStage.output(register)
       }
@@ -318,11 +325,15 @@ class ReservationStation(
         }
       }
 
-      // if the broadcasted address-based PSF prediction turned out to be incorrect, we have to activate the CDB again
+      /**
+       * When the correctness of the PSF prediction is determined based on the address of
+       * the load and the store matching, we can already determine here whether the
+       * prediction was incorrect.
+       */
+      val broadcastedIncorrectPsfPrediction: Bool = if (config.stlSpec) Bool() else null
       if (config.stlSpec && config.addressBasedPsf) {
-        broadcastedIncorrectPsfPrediction := isLoad && lsu.address(
-          exeStage
-        ) =/= psfPredictedAddress &&
+        broadcastedIncorrectPsfPrediction := isLoad &&
+          lsu.address(exeStage) =/= psfPredictedAddress &&
           broadcastedPsfPrediction && !noPsfPrediction
         pipeline.serviceOption[DataSpeculationService] foreach { spec =>
           spec.isPsfSpeculative(cdbStream.metadata) := broadcastedIncorrectPsfPrediction
@@ -333,29 +344,27 @@ class ReservationStation(
         }
       }
 
-      val condition = Bool()
+      /**
+       * we want to send a CDB message when it has an output value or when speculation
+       * tracking demands it
+       */
 
-      pipeline.serviceOption[ControlSpeculationService] match {
-        case Some(spec) =>
-          if (config.stlSpec && config.addressBasedPsf) {
-            condition := exeStage.output(pipeline.data.RD_DATA_VALID) ||
-              spec.isSpeculativeCFInput(exeStage) || broadcastedIncorrectPsfPrediction
-          } else {
-            condition := exeStage.output(pipeline.data.RD_DATA_VALID) || spec.isSpeculativeCFInput(
-              exeStage
-            )
-          }
-        case None =>
-          if (config.stlSpec && config.addressBasedPsf) {
-            condition := exeStage.output(
-              pipeline.data.RD_DATA_VALID
-            ) || broadcastedIncorrectPsfPrediction
-          } else {
-            condition := exeStage.output(pipeline.data.RD_DATA_VALID)
-          }
+      val cdbStreamActivate = Bool()
+      cdbStreamActivate := exeStage.output(pipeline.data.RD_DATA_VALID)
+
+      if (config.stlSpec && config.addressBasedPsf) {
+        when(broadcastedIncorrectPsfPrediction) {
+          cdbStreamActivate := True
+        }
       }
 
-      when(condition) {
+      pipeline.serviceOption[ControlSpeculationService] foreach { spec =>
+        when(spec.isSpeculativeCFInput(exeStage)) {
+          cdbStreamActivate := True
+        }
+      }
+
+      when(cdbStreamActivate) {
         cdbStream.valid := True
       }
 
@@ -420,6 +429,9 @@ class ReservationStation(
 
     meta.reset()
 
+    /**
+     * We only want to perform PSF on word-width load instructions (for now)
+     */
     if (config.stlSpec) {
       broadcastedPsfPrediction := False
       when(
@@ -430,7 +442,7 @@ class ReservationStation(
           .widthOut(issueStage) =/= LsuAccessWidth.W ||
           entryMeta.preventPsf
       ) {
-        noPsfPrediction := True // prevent prediction on non-loads and non-word accesses
+        noPsfPrediction := True
       }
     }
 
