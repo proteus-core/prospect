@@ -413,6 +413,11 @@ class ReservationStation(
         reset()
         softFlush := True
       }
+    } otherwise {
+      // fail-safe in case of overtainting: start execution when there is nothing to wait for
+      when(robEntryIndex === rob.oldestIndex && state === State.WAITING_FOR_ARGS) {
+        stateNext := State.EXECUTING
+      }
     }
   }
 
