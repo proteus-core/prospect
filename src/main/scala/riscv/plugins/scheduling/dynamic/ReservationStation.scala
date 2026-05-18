@@ -270,16 +270,14 @@ class ReservationStation(
       reset()
     }
 
-    /**
-     * This is predictive store forwarding (PSF):
-     * for appropriate load instructions (indicated by a False broadcastedPsfPrediction)
-     * we broadcast the value of the last store instruction if
-     * the current load address is not yet available.
-     *
-     * This means that loads with a PSF prediction will issue two CDB messages:
-     * this first one is the prediction, then the LoadManager will broadcast
-     * the actual loaded value once the address is resolved and the load executed.
-     */
+    /** This is predictive store forwarding (PSF): for appropriate load instructions (indicated by a
+      * False broadcastedPsfPrediction) we broadcast the value of the last store instruction if the
+      * current load address is not yet available.
+      *
+      * This means that loads with a PSF prediction will issue two CDB messages: this first one is
+      * the prediction, then the LoadManager will broadcast the actual loaded value once the address
+      * is resolved and the load executed.
+      */
     if (config.stlSpec) {
       when(
         state === State.WAITING_FOR_ARGS && !broadcastedPsfPrediction && !activeFlush && !noPsfPrediction
@@ -333,11 +331,10 @@ class ReservationStation(
         }
       }
 
-      /**
-       * When the correctness of the PSF prediction is determined based on the address of
-       * the load and the store matching, we can already determine here whether the
-       * prediction was incorrect.
-       */
+      /** When the correctness of the PSF prediction is determined based on the address of the load
+        * and the store matching, we can already determine here whether the prediction was
+        * incorrect.
+        */
       val broadcastedIncorrectPsfPrediction: Bool = if (config.stlSpec) Bool() else null
       if (config.stlSpec && config.addressBasedPsf) {
         broadcastedIncorrectPsfPrediction := isLoad &&
@@ -352,10 +349,9 @@ class ReservationStation(
         }
       }
 
-      /**
-       * we want to send a CDB message when it has an output value or when speculation
-       * tracking demands it
-       */
+      /** we want to send a CDB message when it has an output value or when speculation tracking
+        * demands it
+        */
 
       val cdbStreamActivate = Bool()
       cdbStreamActivate := exeStage.output(pipeline.data.RD_DATA_VALID)
@@ -442,9 +438,8 @@ class ReservationStation(
 
     meta.reset()
 
-    /**
-     * We only want to perform PSF on word-width load instructions (for now)
-     */
+    /** We only want to perform PSF on word-width load instructions (for now)
+      */
     if (config.stlSpec) {
       broadcastedPsfPrediction := False
       when(

@@ -319,11 +319,9 @@ class ReorderBuffer(
 
     val meta = bookkeeping(rs1, rs2)
 
-    /**
-     * For PSF and SSB, we store a table of instruction addresses that triggered
-     * mispredictions in the past to avoid predictions on them again (a very basic
-     * form of selective PSF/SSB).
-     */
+    /** For PSF and SSB, we store a table of instruction addresses that triggered mispredictions in
+      * the past to avoid predictions on them again (a very basic form of selective PSF/SSB).
+      */
     if (config.stlSpec) {
       meta.preventPsf := findPsfPredictorEntry(issueStage.output(pipeline.data.PC))
       pushedEntry.preventSsb := findSsbPredictorEntry(issueStage.output(pipeline.data.PC))
@@ -675,7 +673,9 @@ class ReorderBuffer(
       } else {
         // detect wrongly forwarded value-based PSF
         when(
-          lsuService.operationOfBundle(rdbMessage.registerMap) === LsuOperationType.LOAD && robEntries(
+          lsuService.operationOfBundle(
+            rdbMessage.registerMap
+          ) === LsuOperationType.LOAD && robEntries(
             rdbMessage.robIndex
           ).cdbUpdated
         ) {
